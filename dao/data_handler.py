@@ -150,7 +150,7 @@ def restore_data() -> Tuple[List[User], List[Product], List[Order], bool]:
         })
         return [], [], [], False
 
-# ------------------------------ 内部辅助函数（不对外暴露） ------------------------------
+# ------------------------------ 内部辅助函数 ------------------------------
 def _json_to_users(json_list: List[Dict]) -> List[User]:
     """JSON列表转为User实体列表"""
     users = []

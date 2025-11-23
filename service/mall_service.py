@@ -10,13 +10,14 @@ from typing import List, Tuple, Optional, Dict
 class MallSystem:
     """商城系统业务核心：处理权限、商品、订单等业务逻辑"""
     def __init__(self):
-        # 初始化数据（从DAO层加载）
+        # 初始化数据
         self.users: List[User] = []
         self.products: List[Product] = []
         self.orders: List[Order] = []
-        self.current_user: Optional[User] = None  # 当前登录用户
-        self._load_initial_data()  # 加载数据
-        self._init_default_users()  # 初始化默认管理员（无数据时）
+        self.current_user: Optional[User] = None
+        #先定义空列表，再赋值
+        self._load_initial_data()
+        self._init_default_users()  # 初始化默认管理员
 
     def _load_initial_data(self) -> None:
         """加载初始数据：调用DAO层接口"""
@@ -25,7 +26,7 @@ class MallSystem:
     def _init_default_users(self) -> None:
         """初始化默认管理员（无用户数据时）"""
         if not self.users:
-            # 超级管理员（admin/Admin1234）、普通管理员（user1/User123456）
+            # 超级管理员（lsl/Lsl123）、普通管理员（user1/User123456）
             super_user = User("lsl", "Lsl123", is_super=True)
             normal_user = User("user1", "User123456", is_super=False)
             self.users.extend([super_user, normal_user])
@@ -38,7 +39,7 @@ class MallSystem:
             })
 
     def _log_operation(self, operation: str, result: str, start_time: float) -> None:
-        """记录操作日志（内部调用）"""
+        """记录操作日志"""
         response_time = round(time.time() - start_time, 4)
         logger.info("", extra={
             "user": self.current_user.username if self.current_user else "anonymous",
@@ -52,11 +53,17 @@ class MallSystem:
         """管理员登录：返回是否成功"""
         start_time = time.time()
         user = next((u for u in self.users if u.username == username), None)
+        """ user = None
+            for u in self.users:
+                if u.username == username:
+                    user = u
+                    break
+        """
         if not user:
             self._log_operation("login", "fail: 用户名不存在", start_time)
             return False
 
-        # 检查账号锁定（3次失败锁定30秒）
+        #3次失败锁定30秒
         current_time = time.time()
         if user.login_fail_count >= 3 and current_time - user.lock_time < 30:
             remaining = 30 - (current_time - user.lock_time)
@@ -96,41 +103,41 @@ class MallSystem:
         return True
 
     def modify_user(self, old_username: str, new_username: str, new_password: str) -> Tuple[bool, str]:
-        """修改用户信息（示例方法）"""
+        """修改用户信息"""
         start_time = time.time()
 
-        # 1. 权限检查（只有超级管理员能修改）
+        # 权限检查,只有超级管理员能修改
         if not self.check_permission(require_super=True):
             self._log_operation("modify_user", "fail: 无权限", start_time)
             return False, "无权限修改用户信息"
 
-        # 2. 查找用户
+        # 查找用户
         user = next((u for u in self.users if u.username == old_username), None)
         if not user:
             self._log_operation("modify_user", f"fail: 用户{old_username}不存在", start_time)
             return False, "用户不存在"
 
-        # 3. 检查新用户名是否已被占用（如果修改用户名）
+        # 检查新用户名是否已被占用
         if new_username != old_username and any(u.username == new_username for u in self.users):
             self._log_operation("modify_user", f"fail: 新用户名{new_username}已存在", start_time)
             return False, "新用户名已被占用"
 
-        # 4. 验证新密码强度（调用工具层的校验函数）
+        # 验证新密码强度
         if not check_password_strength(new_password):
             self._log_operation("modify_user", "fail: 密码强度不足", start_time)
             return False, "密码需包含大小写字母+数字，长度≥8位"
 
-        # 5. 更新用户信息（关键：修改内存中的self.users列表）
+        # 更新用户信息（修改内存中的self.users列表）
         user.username = new_username  # 修改用户名
         user.password = new_password  # 修改密码
 
-        # 6. 保存到文件（关键：持久化修改，否则重启后丢失）
+        # 保存到文件
         save_success = save_data(self.users, self.products, self.orders)
         if not save_success:
             self._log_operation("modify_user", "fail: 数据保存失败", start_time)
             return False, "修改失败，数据保存出错"
 
-        # 7. 记录日志
+        # 记录日志
         self._log_operation("modify_user", f"success: {old_username}修改为{new_username}", start_time)
         return True, "修改成功"
     # ------------------------------ 商品管理业务 ------------------------------
@@ -144,15 +151,19 @@ class MallSystem:
 
         # 验证商品编号唯一
         if any(p.product_id == product_id for p in self.products):
+            """for p in self.products:
+                    if p.product_id == product_id:
+                    重复
+            """
             self._log_operation("add_product", f"fail: 商品编号{product_id}重复", start_time)
             return False, "商品编号已存在，请重新输入"
 
-        # 验证单价（正浮点数）
+        # 验证单价
         if not check_positive_number(price, is_int=False):
             self._log_operation("add_product", f"fail: 单价{price}无效", start_time)
             return False, "单价必须是大于0的数字"
 
-        # 验证库存（正整数）
+        # 验证库存
         if not check_positive_number(stock, is_int=True):
             self._log_operation("add_product", f"fail: 库存{stock}无效", start_time)
             return False, "库存必须是大于0的整数"
